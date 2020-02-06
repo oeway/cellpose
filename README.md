@@ -56,6 +56,12 @@ If you are on Yosemite Mac OS, PyQt doesn't work and you won't be able to use th
 
 If you plan on running many images, you may want to install a GPU version of *mxnet*. Follow the instructions [here](https://mxnet.apache.org/get_started?).
 
+Before installing the GPU version, remove the CPU version:
+~~~
+pip uninstall mxnet-mkl
+pip uninstall mxnet
+~~~
+
 **Installation of github version**
 
 Follow steps from above to install the dependencies. In the github repository, run `pip install -e .` and the github version will be installed. If you want to go back to the pip version of cellpose, then say `pip install cellpose`.
@@ -186,11 +192,11 @@ from cellpose import plot
 dat = np.load('_seg.npy', allow_pickle=True).item()
 
 # plot image with masks overlaid
-RGB = plot.mask_overlay(dat['img'][0], dat['masks'][0]+1,
+RGB = plot.mask_overlay(dat['img'], dat['masks']+1,
                         colors=np.array(dat['colors']))
 
 # plot image with outlines overlaid in red (can change color of outline)
-RGB = plot.outline_overlay(dat['img'][0], dat['outlines'][0]+1,
+RGB = plot.outline_overlay(dat['img'], dat['outlines']+1,
                            channels=dat['chan_choose'], color=[255,0,0])
 ~~~~~
 
