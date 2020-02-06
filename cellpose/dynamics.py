@@ -217,6 +217,12 @@ def remove_bad_flow_masks(masks, flows, threshold=0.5):
     return masks
 
 def get_masks(p, rpad=20, nmax=20, threshold=0.5, flows=None):
+    # split into two steps due to crash issue at the line `np.unique(M0, return_inverse=True)` on MyBinder
+    M0, shape0 = _get_masks_step1(p, rpad, nmax)
+    masks = _get_masks_step2(M0, shape0, flows, threshold)
+    return masks
+    
+def _get_masks_step1(p, rpad, nmax):
     pflows = []
     edges = []
     shape0 = p.shape[1:]
@@ -271,15 +277,17 @@ def get_masks(p, rpad=20, nmax=20, threshold=0.5, flows=None):
         #print(pix[k][0].size)
         if pix[k][0].size<nmax:
             ibad[k] = 0
-
+    for i in range(dims):
+        pflows[i] = pflows[i] + rpad
+   
     M = np.zeros(h.shape, np.int32)
     for k in range(len(pix)):
         M[pix[k]] = 1+k
         #).sum())
-
-    for i in range(dims):
-        pflows[i] = pflows[i] + rpad
     M0 = M[tuple(pflows)]
+    return M0,shape0
+
+def _get_masks_step2(M0, shape0, flows, threshold):
     _,M0 = np.unique(M0, return_inverse=True)
     M0 = np.reshape(M0, shape0)
 
