@@ -1,5 +1,6 @@
 from scipy.ndimage.filters import maximum_filter1d
 import numpy as np
+from tqdm import trange
 import time
 import mxnet as mx
 import mxnet.ndarray as nd
@@ -95,6 +96,26 @@ def extend_centers(T,y,x,ymed,xmed,Lx, niter):
                                             T[(y+1)*Lx + x-1] + T[(y+1)*Lx + x+1])
     return T
 
+def labels_to_flows(labels):
+    nimg = len(labels)
+    if labels[0].ndim < 3:
+        labels = [labels[n][np.newaxis,:,:] for n in range(nimg)]
+
+    if labels[0].shape[0] == 1 or labels[0].ndim < 3:
+        print('NOTE: computing flows for labels (could be done before to save time)')
+        # compute flows        
+        veci = [masks_to_flows(labels[n][0])[0] for n in trange(nimg)]
+        # concatenate flows with cell probability
+        flows = [np.concatenate((labels[n][[0]]>0, veci[n]), axis=0).astype(np.float32)
+                    for n in range(nimg)]
+    else:
+        print('flows precomputed')
+        if labels[0].shape[0] > 3:
+            flows = [labels[n][1:].astype(np.float32) for n in range(nimg)]
+        else:
+            flows = [labels[n].astype(np.float32) for n in range(nimg)]
+    return flows
+
 def masks_to_flows(masks):
     Ly, Lx = masks.shape
     mu = np.zeros((2, Ly, Lx), np.float64)
@@ -168,12 +189,8 @@ def steps2D(p, dP, inds, niter):
             y = inds[j,0]
             x = inds[j,1]
             p0, p1 = int(p[0,y,x]), int(p[1,y,x])
-            #if t > niter-50:
-            #    p[0,y,x] = min(shape[0]-1, max(0, p[0,y,x] - 0.1*dP[0,p0,p1]))
-            #    p[1,y,x] = min(shape[1]-1, max(0, p[1,y,x] - 0.1*dP[1,p0,p1]))
-            #else:
-            p[0,y,x] = min(shape[0]-1, max(0, p[0,y,x] - 0.5*dP[0,p0,p1]))
-            p[1,y,x] = min(shape[1]-1, max(0, p[1,y,x] - 0.5*dP[1,p0,p1]))
+            p[0,y,x] = min(shape[0]-1, max(0, p[0,y,x] - 1.0*dP[0,p0,p1]))
+            p[1,y,x] = min(shape[1]-1, max(0, p[1,y,x] - 1.0*dP[1,p0,p1]))
     return p
 
 @njit('(float32[:],float32[:],float32[:],float32[:],int32[:],int32[:],int32[:], int32)')

@@ -4,7 +4,7 @@ A generalist algorithm for cell and nucleus segmentation.
 
 This code was written by Carsen Stringer and Marius Pachitariu. To learn about Cellpose, read the [paper](https://t.co/4HFsxDezAP?amp=1) or watch the [talk](https://t.co/JChCsTD0SK?amp=1). For support, please open an [issue](https://github.com/MouseLand/cellpose/issues). 
 
-You can quickly try out Cellpose on the [website](http://www.cellpose.org) first (some features disabled). If you want to improve Cellpose for yourself and for everyone else, please consider contributing manual segmentations for a few of your images via the built-in GUI interface. 
+You can quickly try out Cellpose on the [website](http://www.cellpose.org) first (some features disabled). If you want to improve Cellpose for yourself and for everyone else, please consider contributing manual segmentations for a few of your images via the built-in GUI interface (see instructions below). 
 
 ## Installation
 
@@ -15,20 +15,20 @@ pip install cellpose
 
 Alternatively you can use the included environment file (if you'd like a cellpose-specific environment). This is **recommended** if you have problems with the pip. Please follow these instructions:
 
-1. Download the [`environment.yml`](https://github.com/MouseLand/cellpose/blob/master/environment.yml) file from the repository. You can do this by cloning the repository, or copy-pasting the text from the file into a text document on your local computer.
+1. Download the [`environment.yml`](https://github.com/MouseLand/cellpose/blob/master/environment.yml?raw=true) file from the repository. You can do this by cloning the repository, or copy-pasting the text from the file into a text document on your local computer.
 2. Open an anaconda prompt / command prompt with `conda` for **python 3** in the path
 3. Change directories to where the `environment.yml` is and run `conda env create -f environment.yml`
 4. To activate this new environment, run `conda activate cellpose`
 5. You should see `(cellpose)` on the left side of the terminal line. Now run `python -m cellpose` and you're all set.
 
-If you have an older `cellpose` environment you can remove it with `conda env remove -n cellpose` before creating a new one.
-
-Note you will always have to run **conda activate cellpose** before you run cellpose. If you want to run jupyter notebooks in this environment, then also `conda install jupyter`.
-
 To upgrade cellpose (package [here](https://pypi.org/project/cellpose/)), run the following in the environment:
 ~~~~
 pip install cellpose --upgrade
 ~~~~
+
+If you have an older `cellpose` environment you can remove it with `conda env remove -n cellpose` before creating a new one.
+
+Note you will always have to run **conda activate cellpose** before you run cellpose. If you want to run jupyter notebooks in this environment, then also `conda install jupyter`.
 
 **Common issues**
 
@@ -54,12 +54,17 @@ If you are on Yosemite Mac OS, PyQt doesn't work and you won't be able to use th
 
 **CUDA version**
 
-If you plan on running many images, you may want to install a GPU version of *mxnet*. Follow the instructions [here](https://mxnet.apache.org/get_started?).
+If you plan on running many images, you may want to install a GPU version of *mxnet*. I recommend using CUDA 10.0 or greater. Follow the instructions [here](https://mxnet.apache.org/get_started?).
 
 Before installing the GPU version, remove the CPU version:
 ~~~
 pip uninstall mxnet-mkl
 pip uninstall mxnet
+~~~
+
+When upgrading cellpose, you will want to ignore dependencies (so that mxnet-mkl does not install):
+~~~
+pip install --no-deps cellpose --upgrade
 ~~~
 
 **Installation of github version**
@@ -79,7 +84,21 @@ You can now **drag and drop** any images (*.tif, *.png, *.jpg, *.gif) into the G
 
 For multi-channel, multi-Z tiff's, the expected format is Z x channels x Ly x Lx.
 
-**In the GUI**
+## Contributing training data
+
+We are very excited about receiving community contributions to the training data and re-training the cytoplasm model to make it better. Please follow these guidelines:
+
+1. Run cellpose on your data to see how well it does. Try varying the diameter, which can change results a little. 
+2. If there are relatively few mistakes, it won't help much to contribute labelled data. 
+3. If there are consistent mistakes, your data is likely very different from anything in the training set, and you should expect major improvements from contributing even just a few manually segmented images.
+4. For images that you contribute, the cells should be at least 10 pixels in diameter, and there should be **at least** several dozens of cells per image, ideally ~100. If your images are too small, consider combining multiple images into a single big one and then manually segmenting that. If they are too big, consider splitting them into smaller crops. 
+5. For the manual segmentation, please try to outline the boundaries of the cell, so that everything (membrane, cytoplasm, nucleus) is inside the boundaries. Do not just outline the cytoplasm and exclude the membrane, because that would be inconsistent with our own labelling and we wouldn't be able to use that. 
+6. Do not use the results of the algorithm in any way to do contributed manual segmentations. This can reinforce a vicious circle of mistakes, and compromise the dataset for further algorithm development. 
+
+If you are having problems with the nucleus model, please open an issue before contributing data. Nucleus images are generally much less diverse, and we think the current training dataset already covers a very large set of modalities. 
+
+
+## Using the GUI
 
 The GUI serves two main functions:
 
@@ -96,9 +115,11 @@ Main GUI mouse controls (works in all views):
 - Start draw mask = right-click
 - End draw mask = right-click, or return to circle at beginning
 
-Overlaps in masks are NOT allowed. If you draw a mask on top of another mask, it is cropped so that it doesn't overlap with the old mask. Masks in 2D should be single strokes (if single stroke is checked). 
+Overlaps in masks are NOT allowed. If you draw a mask on top of another mask, it is cropped so that it doesn't overlap with the old mask. Masks in 2D should be single strokes (if *single_stroke* is checked). 
 
-!NOTE!: The GUI automatically saves after you draw a mask but NOT after segmentation. Save in the file menu or with Ctrl+S. The output file is in the same folder as the loaded image with `_seg.npy` appended.
+If you want to draw masks in 3D (experimental), then you can turn *single_stroke* option off and draw a stroke on each plane with the cell and then press ENTER. 3D labelling will fill in unlabelled z-planes so that you do not have to as densely label.
+
+!NOTE!: The GUI automatically saves after you draw a mask but NOT after segmentation and NOT after 3D mask drawing (too slow). Save in the file menu or with Ctrl+S. The output file is in the same folder as the loaded image with `_seg.npy` appended.
 
 | Keyboard shortcuts  | Description                                                                    |
 | ------------------- | ------------------------------------------------------------------------------ |
@@ -133,43 +154,54 @@ CHAN2 (OPT): if *cytoplasm* model is chosen, then choose the nuclear channel for
 
 ### In a notebook
 
-See also [run_cellpose.ipynb](notebooks/run_cellpose.ipynb).
+See [run_cellpose.ipynb](notebooks/run_cellpose.ipynb).
 
+### From the command line
+
+Run `python -m cellpose` and specify parameters as below. For instance to run on a folder with images where cytoplasm is green and nucleus is blue and save the output as a png:
 ~~~
-import numpy as np
-import time, os, sys
-import mxnet as mx
-import matplotlib.pyplot as plt
-import glob
-import sys
-from cellpose import models, utils, plot
+python -m cellpose --dir ~/images_cyto/test/ --pretrained_model cyto --chan 1 --chan2 2 --save_png
+~~~
 
-# check if GPU working, and if so use it
-use_gpu = utils.use_gpu()
-if use_gpu:
-    device = mx.gpu()
-else:
-    device = mx.cpu()
+You can specify the diameter for all the images or set to 0 if you want the algorithm to estimate it on an image by image basis. Here is how to run on nuclear data (grayscale) where the diameter is automatically estimated:
+~~~
+python -m cellpose --dir ~/images_nuclei/test/ --pretrained_model nuclei --diameter 0. --save_png
+~~~
 
-# model_type='cyto' or model_type='nuclei'
-model = models.Cellpose(device, model_type='nuclei')
+Parameters:
+~~~
+usage: __main__.py [-h] [--train] [--dir DIR] [--img_filter IMG_FILTER]
+                   [--use_gpu] [--pretrained_model PRETRAINED_MODEL]
+                   [--chan CHAN] [--chan2 CHAN2] [--all_channels]
+                   [--diameter DIAMETER] [--save_png]
+                   [--mask_filter MASK_FILTER] [--test_dir TEST_DIR]
+                   [--n_epochs N_EPOCHS] [--batch_size BATCH_SIZE]
 
-# list of files
-files = ['/github/cellpose_web/static/images/img00.png', 
-         '/github/cellpose_web/static/images/img01.png']
+cellpose parameters
 
-imgs = [plt.imread(f) for f in files]
-nimg = len(imgs)
-
-# define CHANNELS to run segementation on
-# grayscale=0, R=1, G=2, B=3
-# channels = [cytoplasm, nucleus]
-# if NUCLEUS channel does not exist, set the second channel to 0
-channels = [[2,3], [0,0]]
-
-# if rescale is set to None, the size of the cells is estimated on a per image basis
-# if you want to set the size yourself, set it to 30. / average_cell_diameter
-masks, flows, styles, diams = model.eval(imgs, rescale=None, channels=channels)
+optional arguments:
+  -h, --help            show this help message and exit
+  --train               train network using images in dir
+  --dir DIR             folder containing data to run or train on
+  --img_filter IMG_FILTER
+                        end string for images to run on
+  --use_gpu             use gpu if mxnet with cuda installed
+  --pretrained_model PRETRAINED_MODEL
+                        model to use
+  --chan CHAN           channel to segment; 0: GRAY, 1: RED, 2: GREEN, 3: BLUE
+  --chan2 CHAN2         nuclear channel (if cyto, optional); 0: NONE, 1: RED,
+                        2: GREEN, 3: BLUE
+  --all_channels        use all channels in image if using own model and
+                        images with special channels
+  --diameter DIAMETER   cell diameter, if 0 cellpose will estimate for each
+                        image
+  --save_png            save masks as png
+  --mask_filter MASK_FILTER
+                        end string for masks to run on
+  --test_dir TEST_DIR   folder containing test data (optional)
+  --n_epochs N_EPOCHS   number of epochs
+  --batch_size BATCH_SIZE
+                        batch size
 ~~~
 
 ## Outputs
@@ -182,8 +214,9 @@ masks, flows, styles, diams = model.eval(imgs, rescale=None, channels=channels)
 - *colors* : colors for masks
 - *outlines* : outlines of masks (-1 = NO outline, 0,1,2,... = outline labels)
 - *chan_choose* : channels that you chose in GUI (0=gray/none, 1=red, 2=green, 3=blue)
-- *cell_type* : string with cell_type that you chose
-- *cells* : int of cell_type that you chose
+- *ismanual* : element *k* = whether or not mask *k* was manually drawn or computed by the cellpose algorithm
+- *flows* : flows[0] is XY flow in RGB, flows[1] is Z flow (if it exists), flows[2] is the cell probability in range 0-255 instead of 0.0 to 1.0
+- *est_diam* : estimated diameter (if run on command line)
 
 ~~~~
 import numpy as np
@@ -192,11 +225,11 @@ from cellpose import plot
 dat = np.load('_seg.npy', allow_pickle=True).item()
 
 # plot image with masks overlaid
-RGB = plot.mask_overlay(dat['img'], dat['masks']+1,
+RGB = plot.mask_overlay(dat['img'], dat['masks'],
                         colors=np.array(dat['colors']))
 
 # plot image with outlines overlaid in red (can change color of outline)
-RGB = plot.outline_overlay(dat['img'], dat['outlines']+1,
+RGB = plot.outline_overlay(dat['img'], dat['outlines'],
                            channels=dat['chan_choose'], color=[255,0,0])
 ~~~~~
 
