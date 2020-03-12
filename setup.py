@@ -16,7 +16,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires = ['numpy', 'scipy', 'natsort',
                         'tqdm', 'numba', 'scikit-image',
-                        'matplotlib', 'mxnet_mkl', 'opencv_python',
+                        'matplotlib', 'mxnet-cu101', 'opencv_python',
                         "pyqtgraph", "PyQt5", "google-cloud-storage"],
     include_package_data=True,
     classifiers=(
