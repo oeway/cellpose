@@ -104,29 +104,46 @@ class batchconvstyle(nn.Module):
         return y
     
 class resup(nn.Module):
-    def __init__(self, in_channels, out_channels, style_channels, sz, concatenation=False):
+    def __init__(self, in_channels, out_channels, style_channels, sz, concatenation=False, style_on=True):
         super().__init__()
+        self.style_on = style_on
         self.conv = nn.Sequential()
         self.conv.add_module('conv_0', batchconv(in_channels, out_channels, sz))
-        self.conv.add_module('conv_1', batchconvstyle(out_channels, out_channels, style_channels, sz, concatenation=concatenation))
-        self.conv.add_module('conv_2', batchconvstyle(out_channels, out_channels, style_channels, sz))
-        self.conv.add_module('conv_3', batchconvstyle(out_channels, out_channels, style_channels, sz))
+        if self.style_on:
+            self.conv.add_module('conv_1', batchconvstyle(out_channels, out_channels, style_channels, sz, concatenation=concatenation))
+            self.conv.add_module('conv_2', batchconvstyle(out_channels, out_channels, style_channels, sz))
+            self.conv.add_module('conv_3', batchconvstyle(out_channels, out_channels, style_channels, sz))
+        else:
+            self.conv.add_module('conv_1', batchconv(out_channels, out_channels, sz))
+            self.conv.add_module('conv_2', batchconv(out_channels, out_channels, sz))
+            self.conv.add_module('conv_3', batchconv(out_channels, out_channels, sz))
         self.proj  = batchconv0(in_channels, out_channels, 1)
 
     def forward(self, x, y, style, mkldnn=False):
-        x = self.proj(x) + self.conv[1](style, self.conv[0](x) + y, mkldnn=mkldnn)
-        x = x + self.conv[3](style, self.conv[2](style, x, mkldnn=mkldnn), mkldnn=mkldnn)
+        if self.style_on:
+            x = self.proj(x) + self.conv[1](style, self.conv[0](x) + y, mkldnn=mkldnn)
+            x = x + self.conv[3](style, self.conv[2](style, x, mkldnn=mkldnn), mkldnn=mkldnn)
+        else:
+            x = self.proj(x) + self.conv[1](self.conv[0](x) + y)
+            x = x + self.conv[3](self.conv[2](x))
         return x
     
 class convup(nn.Module):
-    def __init__(self, in_channels, out_channels, style_channels, sz, concatenation=False):
+    def __init__(self, in_channels, out_channels, style_channels, sz, concatenation=False, style_on=True):
         super().__init__()
+        self.style_on = style_on
         self.conv = nn.Sequential()
         self.conv.add_module('conv_0', batchconv(in_channels, out_channels, sz))
-        self.conv.add_module('conv_1', batchconvstyle(out_channels, out_channels, style_channels, sz, concatenation=concatenation))
+        if self.style_on:
+            self.conv.add_module('conv_1', batchconvstyle(out_channels, out_channels, style_channels, sz, concatenation=concatenation))
+        else:
+            self.conv.add_module('conv_1', batchconv(out_channels, out_channels, sz))
         
     def forward(self, x, y, style):
-        x = self.conv[1](style, self.conv[0](x) + y)
+        if self.style_on:
+            x = self.conv[1](style, self.conv[0](x) + y)
+        else:
+            x = self.conv[1](self.conv[0](x) + y)
         return x
     
 class make_style(nn.Module):
@@ -144,17 +161,17 @@ class make_style(nn.Module):
         return style
     
 class upsample(nn.Module):
-    def __init__(self, nbase, sz, residual_on=True, concatenation=False):
+    def __init__(self, nbase, sz, residual_on=True, concatenation=False, style_on=True):
         super().__init__()
         self.upsampling = nn.Upsample(scale_factor=2, mode='nearest')
         self.up = nn.Sequential()
         for n in range(1,len(nbase)):
             if residual_on:
                 self.up.add_module('res_up_%d'%(n-1), 
-                    resup(nbase[n], nbase[n-1], nbase[-1], sz, concatenation))
+                    resup(nbase[n], nbase[n-1], nbase[-1], sz, concatenation, style_on))
             else:
                 self.up.add_module('conv_up_%d'%(n-1), 
-                    convup(nbase[n], nbase[n-1], nbase[-1], sz, concatenation))
+                    convup(nbase[n], nbase[n-1], nbase[-1], sz, concatenation, style_on))
 
     def forward(self, style, xd, mkldnn=False):
         x = self.up[-1](xd[-1], xd[-1], style, mkldnn=mkldnn)
@@ -180,8 +197,9 @@ class CPnet(nn.Module):
         self.downsample = downsample(nbase, sz, residual_on=residual_on)
         nbaseup = nbase[1:]
         nbaseup.append(nbaseup[-1])
-        self.upsample = upsample(nbaseup, sz, residual_on=residual_on, concatenation=concatenation)
-        self.make_style = make_style()
+        self.upsample = upsample(nbaseup, sz, residual_on=residual_on, concatenation=concatenation, style_on=self.style_on)
+        if self.style_on:
+            self.make_style = make_style()
         self.output = batchconv(nbaseup[0], nout, 1)
         self.style_on = style_on
         
@@ -189,18 +207,20 @@ class CPnet(nn.Module):
         if self.mkldnn:
             data = data.to_mkldnn()
         T0    = self.downsample(data)
-        if self.mkldnn:
-            style = self.make_style(T0[-1].to_dense()) 
+        if self.style_on:
+            if self.mkldnn:
+                style = self.make_style(T0[-1].to_dense()) 
+            else:
+                style = self.make_style(T0[-1])
         else:
-            style = self.make_style(T0[-1])
-        style0 = style
-        if not self.style_on:
-            style = style * 0
+            # Produce a dummy style vector
+            # Note: the size is different from a real style vector
+            style = T0[-1]
         T0 = self.upsample(style, T0, self.mkldnn)
         T0    = self.output(T0)
         if self.mkldnn:
-            T0 = T0.to_dense()    
-        return T0, style0
+            T0 = T0.to_dense()
+        return T0, style
 
     def save_model(self, filename):
         torch.save(self.state_dict(), filename)
