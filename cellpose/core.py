@@ -904,6 +904,7 @@ class UnetModel():
             if not os.path.exists(file_path):
                 os.makedirs(file_path)
         else:
+            file_path = None
             print('WARNING: no save_path given, model not saving')
 
         ksave = 0
@@ -966,5 +967,7 @@ class UnetModel():
 
         # reset to mkldnn if available
         self.net.mkldnn = self.mkldnn
-
-        return os.path.join(file_path, file)
+        if file_path:
+            return os.path.join(file_path, file)
+        else:
+            return None
