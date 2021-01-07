@@ -99,6 +99,31 @@ def read_image(path, rescale=1.0, Lx=None, Ly=None):
             #     image = (image * 65535).astype('uint16')
     return image
 
+def get_image_folders(train_dir, image_channels, rescale=1.0):
+    assert image_channels is not None
+    subfolders = [os.path.join(train_dir, f) for f in os.listdir(train_dir)]
+    samples = []
+    for folder in subfolders:
+        for ch in image_channels:
+            fch = glob.glob(folder + '/*%s*'%ch)
+            if len(fch) != 1:
+                continue
+        samples.append(folder)
+    return samples
+
+def read_multi_channel_image(folder, image_channels, rescale=1.0):
+    chs = []
+    for ch in image_channels:
+        fch = glob.glob(folder + '/*%s*'%ch)
+        if len(fch) != 1:
+            continue
+        else:
+            image = read_image(fch[0], rescale)
+            chs.append(image)
+    if len(chs) == 0:
+        return None
+    return np.concatenate(chs, axis=0)
+
 def get_samples(train_dir, image_channels, mask_filter, rescale=1.0):
     assert image_channels is not None
     subfolders = [os.path.join(train_dir, f) for f in os.listdir(train_dir)]

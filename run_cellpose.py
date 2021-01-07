@@ -4,7 +4,8 @@ import numpy as np
 from natsort import natsorted
 from tqdm import tqdm
 
-from . import utils, models, io
+from cellpose import utils, models, io
+from utils import load_train_test_data, get_image_folders, read_multi_channel_image
 
 try:
     from cellpose import gui 
@@ -19,7 +20,7 @@ except Exception as err:
     GUI_IMPORT = False
     raise
 
-def main():
+def main(args=None):
     parser = argparse.ArgumentParser(description='cellpose parameters')
     parser.add_argument('--check_mkl', action='store_true', help='check if mkl working')
     parser.add_argument('--mkldnn', action='store_true', help='for mxnet, force MXNET_SUBGRAPH_BACKEND = "MKLDNN"')
@@ -76,7 +77,10 @@ def main():
     parser.add_argument('--concatenation', required=False, 
                         default=0, type=int, help='concatenate downsampled layers with upsampled layers (off by default which means they are added)')
 
-    args = parser.parse_args()
+    if args:
+        args = parser.parse_args(args)
+    else:
+        args = parser.parse_args()
 
     if args.check_mkl:
         mkl_enabled = models.check_mkl((not args.mxnet))
@@ -119,8 +123,8 @@ def main():
                     print('model path does not exist, using cyto model')
                     args.pretrained_model = 'cyto'
 
-            image_names = io.get_image_files(args.dir, args.mask_filter, imf=imf)
-            nimg = len(image_names)
+            image_folders = get_image_folders(args.dir, imf.split(','))
+            nimg = len(image_folders)
             if args.diameter==0:
                 if args.pretrained_model=='cyto' or args.pretrained_model=='nuclei':
                     diameter = None
@@ -147,8 +151,10 @@ def main():
                                              pretrained_model=cpmodel_path,
                                              torch=(not args.mxnet))
                 
-            for image_name in tqdm(image_names):
-                image = io.imread(image_name)
+            for sample_folder in tqdm(image_folders):
+                image = read_multi_channel_image(sample_folder, imf.split(','), rescale=1.0)
+                if image is None:
+                    continue
                 masks, flows, _, diams = model.eval(image, channels=channels, diameter=diameter,
                                                     do_3D=args.do_3D, net_avg=(not args.fast_mode),
                                                     augment=False,
@@ -157,7 +163,7 @@ def main():
                                                     cellprob_threshold=args.cellprob_threshold,
                                                     batch_size=args.batch_size,
                                                     interp=(not args.no_interp))
-                    
+                image_name = sample_folder +'/image.png'
                 if not args.no_npy:
                     io.masks_flows_to_seg(image, masks, flows, diams, image_name, channels)
                 if args.save_png or args.save_tif:
@@ -179,7 +185,9 @@ def main():
                 channels = None  
 
             test_dir = None if len(args.test_dir)==0 else args.test_dir
-            output = io.load_train_test_data(args.dir, test_dir, imf, args.mask_filter, args.unet)
+
+            output = load_train_test_data(args.dir, test_dir, imf.split(','), args.mask_filter, unet=args.unet, rescale=1.0)
+            # output = io.load_train_test_data(args.dir, test_dir, imf, args.mask_filter, args.unet)
             images, labels, image_names, test_images, test_labels, image_names_test = output
 
             # model path
@@ -226,10 +234,11 @@ def main():
             
             # train segmentation model
             if args.train:
+                save_path = os.path.realpath(os.path.dirname(args.dir))
                 cpmodel_path = model.train(images, labels, train_files=image_names, 
                                             test_data=test_images, test_labels=test_labels, test_files=image_names_test,
                                             learning_rate=args.learning_rate, channels=channels, 
-                                            save_path=os.path.realpath(args.dir), rescale=rescale, n_epochs=args.n_epochs,
+                                            save_path=save_path, rescale=rescale, n_epochs=args.n_epochs,
                                             batch_size=args.batch_size)
                 model.pretrained_model = cpmodel_path
                 print('>>>> model trained and saved to %s'%cpmodel_path)
@@ -251,4 +260,6 @@ def main():
                             {'predicted_diams': predicted_diams, 'diams_style': diams_style})
 
 if __name__ == '__main__':
+    # main("--train --use_gpu --dir ./data/hpa_dataset_v2/train/ --test_dir ./data/hpa_dataset_v2/test/ --img_filter er.png,nuclei.png --mask_filter cell_masks.png --pretrained_model None --chan 1 --chan2 2 --style_on 0".split(" "))
+    # main('--pretrained_model "/home/weiouyang/workspace/cellpose-oeway/data/hpa_dataset_v2/train/models/cellpose_residual_on_style_off_concatenation_off_train_2021_01_07_15_10_07.695863" --use_gpu --save_png --dir ./data/hpa_dataset_v2/test/ --img_filter er.png,nuclei.png --mask_filter cell_masks.png --chan 1 --chan2 2 --style_on 0'.split(" "))
     main()
