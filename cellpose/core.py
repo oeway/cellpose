@@ -169,7 +169,7 @@ class UnetModel():
     def __init__(self, gpu=False, pretrained_model=False,
                     diam_mean=30., net_avg=True, device=None,
                     residual_on=False, style_on=False, concatenation=True,
-                    nclasses = 3, torch=True):
+                    nclasses = 3, torch=True, disable_mkldnn=False):
         self.unet = True
         if torch:
             if not TORCH_ENABLED:
@@ -181,7 +181,7 @@ class UnetModel():
             sdevice, gpu = assign_device(torch, gpu)
         self.device = device if device is not None else sdevice
         self.gpu = gpu
-        if torch and not self.gpu:
+        if not disable_mkldnn and torch and not self.gpu:
             self.mkldnn = check_mkl(self.torch)
         self.pretrained_model = pretrained_model
         self.diam_mean = diam_mean
