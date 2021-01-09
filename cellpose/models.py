@@ -315,7 +315,7 @@ class CellposeModel(UnetModel):
 
     def __init__(self, gpu=False, pretrained_model=False, torch=True,
                     diam_mean=30., net_avg=True, device=None,
-                    residual_on=True, style_on=True, concatenation=False):
+                    residual_on=True, style_on=True, concatenation=False, disable_mkldnn=False):
         if not torch:
             if not MXNET_ENABLED:
                 print('WARNING: mxnet not installed, using torch')
@@ -341,7 +341,7 @@ class CellposeModel(UnetModel):
         super().__init__(gpu=gpu, pretrained_model=False,
                          diam_mean=diam_mean, net_avg=net_avg, device=device,
                          residual_on=residual_on, style_on=style_on, concatenation=concatenation,
-                         nclasses=nclasses, torch=torch)
+                         nclasses=nclasses, torch=torch, disable_mkldnn=disable_mkldnn)
         self.unet = False
         self.pretrained_model = pretrained_model
         if self.pretrained_model is not None and isinstance(self.pretrained_model, str):
